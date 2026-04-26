@@ -7,7 +7,7 @@ from app.models.debate import Debate, DebateCreate, DebateUpdate, DebateStage
 from app.models.topic import PyObjectId
 from app.services.debate_engine import get_debate_engine
 from app.config import get_settings
-from app.main import sio
+from app.socket_instance import sio
 
 
 router = APIRouter()

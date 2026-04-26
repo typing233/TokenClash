@@ -160,9 +160,11 @@ class VolcanoAPIClient:
             {"role": "user", "content": user_prompt}
         ]
         
-        # 添加上下文消息（如果有）
+        # 添加上下文消息（如果有），插入在system prompt之后、user message之前
+        # 只保留API所需的role和content字段
         if context_messages:
-            messages = context_messages + messages[1:]  # 保留system prompt
+            api_context = [{"role": m["role"], "content": m["content"]} for m in context_messages]
+            messages = [messages[0]] + api_context + messages[1:]
         
         response = await self.chat_completion(
             model_name=model_name,
