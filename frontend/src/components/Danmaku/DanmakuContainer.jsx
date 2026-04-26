@@ -49,7 +49,7 @@ const DanmakuContainer = ({ children }) => {
       color: danmaku.color || getRandomColor(),
     };
     
-    setDanmakus(prev => [...prev.slice(-100), newDanmaku);
+    setDanmakus(prev => [...prev.slice(-100), newDanmaku]);
     addDanmaku(newDanmaku);
     
     // 更新轨道状态
