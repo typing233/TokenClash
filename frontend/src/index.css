@@ -46,6 +46,16 @@ body {
   animation: danmaku-scroll 10s linear forwards;
 }
 
+/* 弹幕滚动动画 */
+@keyframes danmaku-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-200%);
+  }
+}
+
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
   width: 8px;
