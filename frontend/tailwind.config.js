@@ -55,7 +55,7 @@ export default {
         },
         'typing': {
           'from': { width: '0' },
-          'to':': { width: '100%' },
+          'to': { width: '100%' },
         },
         'slide-in': {
           '0%': { opacity: '0', transform: 'translateX(-20px)' },
