@@ -7,6 +7,19 @@ from app.services.debate_engine import get_debate_engine
 from app.models.message import DanmakuCreate
 
 
+def _make_serializable(obj):
+    """将包含ObjectId/datetime的对象转换为JSON可序列化格式"""
+    if isinstance(obj, dict):
+        return {k: _make_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_make_serializable(v) for v in obj]
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return obj
+
+
 def setup_socket_events(sio: socketio.AsyncServer):
     """设置Socket.IO事件处理"""
     
@@ -73,8 +86,8 @@ def setup_socket_events(sio: socketio.AsyncServer):
                 "joined_debate",
                 {
                     "debate_id": debate_id_str,
-                    "debate": debate,
-                    "messages": messages,
+                    "debate": _make_serializable(debate),
+                    "messages": _make_serializable(messages),
                     "viewer_count": viewer_count
                 },
                 room=sid
@@ -187,20 +200,19 @@ def setup_socket_events(sio: socketio.AsyncServer):
             await db.messages.insert_one(danmaku_data)
             
             # 转换为可序列化格式
-            danmaku_data["_id"] = str(danmaku_data["_id"])
-            danmaku_data["debate_id"] = str(danmaku_data["debate_id"])
+            serializable_danmaku = _make_serializable(danmaku_data)
             
             # 广播给房间内所有用户
             await sio.emit(
                 "new_danmaku",
-                danmaku_data,
+                serializable_danmaku,
                 room=debate_id_str
             )
             
             # 发送发送确认
             await sio.emit(
                 "danmaku_sent",
-                {"success": True, "danmaku": danmaku_data},
+                {"success": True, "danmaku": serializable_danmaku},
                 room=sid
             )
             
@@ -238,14 +250,9 @@ def setup_socket_events(sio: socketio.AsyncServer):
             messages = await cursor.to_list(length=limit)
             messages.reverse()  # 按时间正序排列
             
-            # 转换为可序列化格式
-            for msg in messages:
-                msg["_id"] = str(msg["_id"])
-                msg["debate_id"] = str(msg["debate_id"])
-            
             await sio.emit(
                 "recent_messages",
-                {"debate_id": debate_id_str, "messages": messages},
+                {"debate_id": debate_id_str, "messages": _make_serializable(messages)},
                 room=sid
             )
             

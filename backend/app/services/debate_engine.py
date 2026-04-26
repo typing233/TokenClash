@@ -10,6 +10,19 @@ from app.config import get_settings
 import socketio
 
 
+def _make_serializable(obj):
+    """将包含ObjectId/datetime的字典转换为JSON可序列化格式"""
+    if isinstance(obj, dict):
+        return {k: _make_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_make_serializable(v) for v in obj]
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return obj
+
+
 settings = get_settings()
 volcano_client = get_volcano_client()
 
@@ -175,9 +188,9 @@ class DebateEngine:
         """
         db = self.get_db()
         
-        # 减少观众计数
+        # 减少观众计数（不低于0）
         await db.debates.update_one(
-            {"_id": debate_id},
+            {"_id": debate_id, "viewer_count": {"$gt": 0}},
             {"$inc": {"viewer_count": -1}}
         )
     
@@ -431,10 +444,11 @@ class DebateSession:
                 opponent_argument=opponent_argument
             )
             
-            # 保存到上下文
+            # 保存到上下文（包含model_id以便后续过滤）
             self.context_messages.append({
                 "role": "assistant",
-                "content": content
+                "content": content,
+                "model_id": model["model_id"]
             })
             
             # 准备消息数据
@@ -461,10 +475,10 @@ class DebateSession:
                 {"$inc": {"message_count": 1}}
             )
             
-            # 通过Socket.IO广播消息
+            # 通过Socket.IO广播消息（转换为可序列化格式）
             await self.sio.emit(
                 "new_message",
-                message_data,
+                _make_serializable(message_data),
                 room=str(self.debate_id)
             )
             
@@ -484,7 +498,7 @@ class DebateSession:
                 "metadata": {"model_id": model["model_id"]}
             }
             await self.db.messages.insert_one(error_message)
-            await self.sio.emit("new_message", error_message, room=str(self.debate_id))
+            await self.sio.emit("new_message", _make_serializable(error_message), room=str(self.debate_id))
     
     async def _stream_message_content(
         self,
@@ -526,10 +540,10 @@ class DebateSession:
         update_data = {"$set": kwargs}
         await self.db.debates.update_one({"_id": self.debate_id}, update_data)
         
-        # 广播状态更新
+        # 广播状态更新（转换为可序列化格式）
         await self.sio.emit(
             "debate_state_update",
-            kwargs,
+            _make_serializable(kwargs),
             room=str(self.debate_id)
         )
     
@@ -566,13 +580,12 @@ class DebateSession:
         }
         
         await self.db.messages.insert_one(message_data)
-        await self.sio.emit("new_message", message_data, room=str(self.debate_id))
+        await self.sio.emit("new_message", _make_serializable(message_data), room=str(self.debate_id))
     
     def _get_last_argument(self, model_id: str) -> Optional[str]:
         """获取指定模型的上一个论点"""
-        # 简单实现：从上下文消息中获取
         for msg in reversed(self.context_messages):
-            if msg.get("role") == "assistant":
+            if msg.get("role") == "assistant" and msg.get("model_id") == model_id:
                 return msg.get("content")
         return None
     

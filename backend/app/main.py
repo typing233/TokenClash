@@ -1,23 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import socketio
 from app.database import connect_to_mongo, close_mongo_connection
 from app.config import get_settings
 from app.routes import topics, debates, votes, rankings, models, auth
 from app.socket import setup_socket_events
+from app.socket_instance import sio
 
 
 settings = get_settings()
-
-
-# 创建Socket.IO服务器
-sio = socketio.AsyncServer(
-    async_mode='asgi',
-    cors_allowed_origins="*",
-    logger=True,
-    engineio_logger=True
-)
 
 
 @asynccontextmanager
