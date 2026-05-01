@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, MessageSquare, Award, Plus, Swords } from 'lucide-react';
+import { Home, MessageSquare, Award, Plus, Swords, Network, Settings2 } from 'lucide-react';
 
 const Navbar = () => {
   const location = useLocation();
@@ -7,8 +7,11 @@ const Navbar = () => {
   const navItems = [
     { path: '/', label: '首页', icon: Home },
     { path: '/debates', label: '辩论', icon: Swords },
+    { path: '/arena', label: '竞技场', icon: Swords },
+    { path: '/network', label: '关系网络', icon: Network },
     { path: '/topics', label: '话题', icon: Plus },
     { path: '/rankings', label: '排行', icon: Award },
+    { path: '/models', label: '模型配置', icon: Settings2 },
   ];
   
   const isActive = (path) => {

@@ -122,3 +122,130 @@ export const useUIStore = create((set, get) => ({
   })),
   clearNotifications: () => set({ notifications: [] }),
 }));
+
+// DNA指纹状态
+export const useDNAStore = create((set, get) => ({
+  fingerprints: [],
+  nebulaPatterns: [],
+  selectedModelId: null,
+  isLoading: false,
+  
+  setFingerprints: (fingerprints) => set({ fingerprints }),
+  setNebulaPatterns: (patterns) => set({ nebulaPatterns: patterns }),
+  setSelectedModelId: (modelId) => set({ selectedModelId: modelId }),
+  setIsLoading: (loading) => set({ isLoading: loading }),
+  
+  addFingerprint: (fingerprint) => set((state) => ({
+    fingerprints: [...state.fingerprints.filter(f => f.model_id !== fingerprint.model_id), fingerprint]
+  })),
+  
+  addNebulaPattern: (pattern) => set((state) => ({
+    nebulaPatterns: [...state.nebulaPatterns.filter(p => p.model_id !== pattern.model_id), pattern]
+  })),
+}));
+
+// 竞技场状态
+export const useArenaStore = create((set, get) => ({
+  currentRoom: null,
+  activeRooms: [],
+  roomHistory: [],
+  
+  energy: {},
+  votes: {},
+  countdown: 0,
+  isActive: false,
+  
+  usedSkills: [],
+  skillEffects: [],
+  
+  setCurrentRoom: (room) => set({ currentRoom: room }),
+  setActiveRooms: (rooms) => set({ activeRooms: rooms }),
+  setRoomHistory: (history) => set({ roomHistory: history }),
+  setCountdown: (time) => set({ countdown: time }),
+  setIsActive: (active) => set({ isActive: active }),
+  
+  updateEnergy: (modelId, amount) => set((state) => ({
+    energy: { ...state.energy, [modelId]: (state.energy[modelId] || 0) + amount }
+  })),
+  
+  updateVote: (modelId, count) => set((state) => ({
+    votes: { ...state.votes, [modelId]: (state.votes[modelId] || 0) + count }
+  })),
+  
+  addSkillEffect: (effect) => set((state) => ({
+    skillEffects: [...state.skillEffects, { ...effect, id: Date.now() }]
+  })),
+  
+  clearRoom: () => set({
+    currentRoom: null,
+    energy: {},
+    votes: {},
+    countdown: 0,
+    isActive: false,
+    usedSkills: [],
+    skillEffects: [],
+  }),
+}));
+
+// 模型配置状态
+export const useModelStore = create(
+  persist(
+    (set, get) => ({
+      modelConfigs: [],
+      activeModelId: null,
+      
+      setModelConfigs: (configs) => set({ modelConfigs: configs }),
+      addModelConfig: (config) => set((state) => ({
+        modelConfigs: [...state.modelConfigs, config]
+      })),
+      updateModelConfig: (modelId, updates) => set((state) => ({
+        modelConfigs: state.modelConfigs.map(c => 
+          c.model_id === modelId ? { ...c, ...updates } : c
+        )
+      })),
+      removeModelConfig: (modelId) => set((state) => ({
+        modelConfigs: state.modelConfigs.filter(c => c.model_id !== modelId)
+      })),
+      setActiveModelId: (modelId) => set({ activeModelId: modelId }),
+    }),
+    {
+      name: 'model-config-storage',
+    }
+  )
+);
+
+// 关系网络状态
+export const useNetworkStore = create((set, get) => ({
+  graphData: null,
+  nodes: [],
+  edges: [],
+  selectedNode: null,
+  hiddenPairs: [],
+  nodeDetails: {},
+  isLoading: false,
+  
+  setGraphData: (data) => set({ 
+    graphData: data,
+    nodes: data?.nodes || [],
+    edges: data?.edges || []
+  }),
+  selectNode: (nodeId) => set({ selectedNode: nodeId }),
+  setSelectedNode: (node) => set({ selectedNode: node }),
+  setHiddenPairs: (pairs) => set({ hiddenPairs: pairs }),
+  addHiddenRelation: (pair) => set((state) => ({
+    hiddenPairs: [...state.hiddenPairs, pair]
+  })),
+  setNodeDetails: (modelId, details) => set((state) => ({
+    nodeDetails: { ...state.nodeDetails, [modelId]: details }
+  })),
+  setIsLoading: (loading) => set({ isLoading: loading }),
+  
+  clearNetwork: () => set({
+    graphData: null,
+    nodes: [],
+    edges: [],
+    selectedNode: null,
+    hiddenPairs: [],
+    nodeDetails: {},
+  }),
+}));

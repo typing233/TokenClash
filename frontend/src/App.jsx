@@ -2,10 +2,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Layout from './components/Layout/Layout';
 import HomePage from './components/Home/HomePage';
 import DebateLive from './components/Debate/DebateLive';
-import VotingPanel from './components/Voting/VotingPanel';
 import RankingList from './components/Ranking/RankingList';
 import TopicsPage from './components/Topics/TopicsPage';
 import CreateTopicPage from './components/Topics/CreateTopicPage';
+import ArenaPage from './pages/ArenaPage';
+import ArenaLive from './components/Arena/ArenaLive';
+import NetworkPage from './pages/NetworkPage';
+import LLMConfigPanel from './components/Settings/LLMConfigPanel';
 
 function App() {
   return (
@@ -14,20 +17,22 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="debates" element={<DebatesPage />} />
+          <Route path="arena" element={<ArenaPage />} />
+          <Route path="network" element={<NetworkPage />} />
           <Route path="topics" element={<TopicsPage />} />
           <Route path="topics/new" element={<CreateTopicPage />} />
           <Route path="rankings" element={<RankingList />} />
+          <Route path="models" element={<LLMConfigPanel />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
         
-        {/* 辩论直播页面（独立路由，全屏模式） */}
         <Route path="/debates/:debateId" element={<DebateLive />} />
+        <Route path="/arena/:roomId" element={<ArenaLive />} />
       </Routes>
     </Router>
   );
 }
 
-// 临时的辩论列表页面
 function DebatesPage() {
   return (
     <div className="p-6">
