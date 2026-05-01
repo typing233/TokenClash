@@ -7,7 +7,11 @@ from app.models.debate import DebateStage, Debate, DebateUpdate
 from app.models.message import Message, ModelMessage, SystemMessage
 from app.services.volcano_api import get_volcano_client
 from app.config import get_settings
+from app.socket.manager import get_socket_manager
 import socketio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _make_serializable(obj):
@@ -155,27 +159,31 @@ class DebateEngine:
             辩论当前状态
         """
         db = self.get_db()
+        socket_manager = get_socket_manager()
         
-        # 增加观众计数
+        debate_id_str = str(debate_id)
+        
+        viewer_count = socket_manager.join_debate_room(user_sid, debate_id_str)
+        
         await db.debates.update_one(
             {"_id": debate_id},
-            {"$inc": {"viewer_count": 1}}
+            {"$set": {"viewer_count": viewer_count}}
         )
         
-        # 获取辩论当前状态
         debate_doc = await db.debates.find_one({"_id": debate_id})
         if not debate_doc:
             return {"error": "Debate not found"}
         
-        # 获取最近的消息
         messages = await db.messages.find(
             {"debate_id": debate_id}
         ).sort("created_at", 1).limit(50).to_list(length=50)
         
+        logger.info(f"User {user_sid} joined debate {debate_id_str}, viewer count: {viewer_count}")
+        
         return {
             "debate": debate_doc,
             "messages": messages,
-            "viewer_count": debate_doc.get("viewer_count", 0)
+            "viewer_count": viewer_count
         }
     
     async def leave_debate(self, debate_id: ObjectId, user_sid: str):
@@ -186,13 +194,12 @@ class DebateEngine:
             debate_id: 辩论ID
             user_sid: 用户的Socket.IO SID
         """
-        db = self.get_db()
+        socket_manager = get_socket_manager()
         
-        # 减少观众计数（不低于0）
-        await db.debates.update_one(
-            {"_id": debate_id, "viewer_count": {"$gt": 0}},
-            {"$inc": {"viewer_count": -1}}
-        )
+        result = await socket_manager.leave_debate_room(user_sid)
+        
+        if result:
+            logger.info(f"User {user_sid} left debate {result.get('room_id')}, viewer count: {result.get('viewer_count')}")
     
     async def _send_system_message(
         self,

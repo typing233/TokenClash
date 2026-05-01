@@ -12,7 +12,11 @@ from app.models.arena import (
 )
 from app.services.dna_service import get_dna_service
 from app.config import get_settings
+from app.socket.manager import get_socket_manager
 from app.socket_instance import sio
+import logging
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 dna_service = get_dna_service()
@@ -223,31 +227,44 @@ class ArenaService:
     async def join_room(self, room_id: str, user_sid: str) -> Optional[ArenaRoom]:
         """用户加入房间"""
         db = self.get_db()
+        socket_manager = get_socket_manager()
+        
+        viewer_count = socket_manager.join_arena_room(user_sid, room_id)
         
         result = await db.arena_rooms.update_one(
             {"room_id": room_id},
             {
-                "$inc": {"viewer_count": 1},
+                "$set": {"viewer_count": viewer_count},
                 "$addToSet": {"viewer_sids": user_sid}
             }
         )
         
         if result.modified_count == 0:
-            return None
+            room = await self.get_room(room_id)
+            if not room:
+                return None
+        
+        logger.info(f"User {user_sid} joined arena room {room_id}, viewer count: {viewer_count}")
         
         return await self.get_room(room_id)
     
     async def leave_room(self, room_id: str, user_sid: str):
         """用户离开房间"""
-        db = self.get_db()
+        socket_manager = get_socket_manager()
         
-        await db.arena_rooms.update_one(
-            {"room_id": room_id},
-            {
-                "$inc": {"viewer_count": -1},
-                "$pull": {"viewer_sids": user_sid}
-            }
-        )
+        result = await socket_manager.leave_arena_room(user_sid)
+        
+        if result:
+            new_count = result.get("viewer_count", 0)
+            db = self.get_db()
+            await db.arena_rooms.update_one(
+                {"room_id": room_id},
+                {
+                    "$set": {"viewer_count": new_count},
+                    "$pull": {"viewer_sids": user_sid}
+                }
+            )
+            logger.info(f"User {user_sid} left arena room {room_id}, viewer count: {new_count}")
     
     async def start_room(self, room_id: str) -> bool:
         """开始房间倒计时"""

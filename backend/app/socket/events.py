@@ -3,8 +3,11 @@ from typing import Dict, Optional
 from bson import ObjectId
 import socketio
 from app.database import get_database
-from app.services.debate_engine import get_debate_engine
 from app.models.message import DanmakuCreate
+from app.socket.manager import get_socket_manager
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _make_serializable(obj):
@@ -32,20 +35,32 @@ def setup_socket_events(sio: socketio.AsyncServer):
     @sio.event
     async def disconnect(sid):
         """客户端断开连接事件"""
-        print(f"Client disconnected: {sid}")
+        logger.info(f"Client disconnected: {sid}")
         
-        # 从所有房间中移除
-        rooms = sio.rooms(sid)
-        for room in rooms:
-            if room != sid:  # 不包括默认的个人房间
-                await sio.leave_room(sid, room)
-                
-                # 通知房间内其他用户有人离开
-                await sio.emit(
-                    "user_left",
-                    {"sid": sid},
-                    room=room
-                )
+        socket_manager = get_socket_manager()
+        
+        room_result = await socket_manager.leave_any_room(sid)
+        
+        if room_result:
+            room_id = room_result["room_id"]
+            viewer_count = room_result["viewer_count"]
+            room_type = room_result["room_type"]
+            
+            await sio.leave_room(sid, room_id)
+            
+            event_name = "user_left" if room_type == "debate" else "user_left_arena"
+            
+            await sio.emit(
+                event_name,
+                {
+                    "sid": sid,
+                    "room_id": room_id,
+                    "viewer_count": viewer_count
+                },
+                room=room_id
+            )
+            
+            logger.info(f"Client {sid} disconnected from {room_type} room {room_id}, new viewer count: {viewer_count}")
     
     @sio.event
     async def join_debate(sid, data):
@@ -58,6 +73,8 @@ def setup_socket_events(sio: socketio.AsyncServer):
         }
         """
         try:
+            from app.services.debate_engine import get_debate_engine
+            
             debate_id_str = data.get("debate_id")
             if not debate_id_str:
                 await sio.emit("error", {"message": "debate_id is required"}, room=sid)
@@ -65,7 +82,6 @@ def setup_socket_events(sio: socketio.AsyncServer):
             
             debate_id = ObjectId(debate_id_str)
             
-            # 调用辩论引擎处理加入逻辑
             debate_engine = get_debate_engine()
             result = await debate_engine.join_debate(debate_id, sid)
             
@@ -73,15 +89,12 @@ def setup_socket_events(sio: socketio.AsyncServer):
                 await sio.emit("error", {"message": result["error"]}, room=sid)
                 return
             
-            # 加入Socket.IO房间
             await sio.enter_room(sid, debate_id_str)
             
-            # 获取辩论信息
             debate = result.get("debate", {})
             messages = result.get("messages", [])
             viewer_count = result.get("viewer_count", 0)
             
-            # 发送加入成功确认
             await sio.emit(
                 "joined_debate",
                 {
@@ -93,7 +106,6 @@ def setup_socket_events(sio: socketio.AsyncServer):
                 room=sid
             )
             
-            # 通知房间内其他用户有新观众加入
             await sio.emit(
                 "user_joined",
                 {"sid": sid, "viewer_count": viewer_count},
@@ -101,10 +113,10 @@ def setup_socket_events(sio: socketio.AsyncServer):
                 skip_sid=sid
             )
             
-            print(f"Client {sid} joined debate {debate_id_str}")
+            logger.info(f"Client {sid} joined debate {debate_id_str}, viewer count: {viewer_count}")
             
         except Exception as e:
-            print(f"Error joining debate: {e}")
+            logger.error(f"Error joining debate: {e}")
             await sio.emit("error", {"message": str(e)}, room=sid)
     
     @sio.event
@@ -118,6 +130,8 @@ def setup_socket_events(sio: socketio.AsyncServer):
         }
         """
         try:
+            from app.services.debate_engine import get_debate_engine
+            
             debate_id_str = data.get("debate_id")
             if not debate_id_str:
                 await sio.emit("error", {"message": "debate_id is required"}, room=sid)
@@ -125,32 +139,31 @@ def setup_socket_events(sio: socketio.AsyncServer):
             
             debate_id = ObjectId(debate_id_str)
             
-            # 调用辩论引擎处理离开逻辑
             debate_engine = get_debate_engine()
             await debate_engine.leave_debate(debate_id, sid)
             
-            # 离开Socket.IO房间
+            socket_manager = get_socket_manager()
+            viewer_count = socket_manager.get_debate_viewers(debate_id_str)
+            
             await sio.leave_room(sid, debate_id_str)
             
-            # 发送离开确认
             await sio.emit(
                 "left_debate",
-                {"debate_id": debate_id_str},
+                {"debate_id": debate_id_str, "viewer_count": viewer_count},
                 room=sid
             )
             
-            # 通知房间内其他用户有观众离开
             await sio.emit(
                 "user_left",
-                {"sid": sid},
+                {"sid": sid, "viewer_count": viewer_count},
                 room=debate_id_str,
                 skip_sid=sid
             )
             
-            print(f"Client {sid} left debate {debate_id_str}")
+            logger.info(f"Client {sid} left debate {debate_id_str}, viewer count: {viewer_count}")
             
         except Exception as e:
-            print(f"Error leaving debate: {e}")
+            logger.error(f"Error leaving debate: {e}")
             await sio.emit("error", {"message": str(e)}, room=sid)
     
     @sio.event
@@ -276,33 +289,45 @@ def setup_socket_events(sio: socketio.AsyncServer):
         }
         """
         try:
+            from app.services.arena_service import get_arena_service
+            
             room_id = data.get("room_id")
             if not room_id:
                 await sio.emit("error", {"message": "room_id is required"}, room=sid)
                 return
             
+            arena_service = get_arena_service()
+            room = await arena_service.join_room(room_id, sid)
+            
+            if not room:
+                await sio.emit("error", {"message": "Room not found"}, room=sid)
+                return
+            
             await sio.enter_room(sid, room_id)
+            
+            viewer_count = room.viewer_count
             
             await sio.emit(
                 "joined_arena",
                 {
                     "room_id": room_id,
-                    "sid": sid
+                    "sid": sid,
+                    "viewer_count": viewer_count
                 },
                 room=sid
             )
             
             await sio.emit(
                 "user_joined_arena",
-                {"sid": sid, "room_id": room_id},
+                {"sid": sid, "room_id": room_id, "viewer_count": viewer_count},
                 room=room_id,
                 skip_sid=sid
             )
             
-            print(f"Client {sid} joined arena room {room_id}")
+            logger.info(f"Client {sid} joined arena room {room_id}, viewer count: {viewer_count}")
             
         except Exception as e:
-            print(f"Error joining arena: {e}")
+            logger.error(f"Error joining arena: {e}")
             await sio.emit("error", {"message": str(e)}, room=sid)
     
     @sio.event
@@ -316,28 +341,37 @@ def setup_socket_events(sio: socketio.AsyncServer):
         }
         """
         try:
+            from app.services.arena_service import get_arena_service
+            from app.socket.manager import get_socket_manager
+            
             room_id = data.get("room_id")
             if not room_id:
                 await sio.emit("error", {"message": "room_id is required"}, room=sid)
                 return
             
+            arena_service = get_arena_service()
+            await arena_service.leave_room(room_id, sid)
+            
+            socket_manager = get_socket_manager()
+            viewer_count = socket_manager.get_arena_viewers(room_id)
+            
             await sio.leave_room(sid, room_id)
             
             await sio.emit(
                 "left_arena",
-                {"room_id": room_id},
+                {"room_id": room_id, "viewer_count": viewer_count},
                 room=sid
             )
             
             await sio.emit(
                 "user_left_arena",
-                {"sid": sid},
+                {"sid": sid, "room_id": room_id, "viewer_count": viewer_count},
                 room=room_id,
                 skip_sid=sid
             )
             
-            print(f"Client {sid} left arena room {room_id}")
+            logger.info(f"Client {sid} left arena room {room_id}, viewer count: {viewer_count}")
             
         except Exception as e:
-            print(f"Error leaving arena: {e}")
+            logger.error(f"Error leaving arena: {e}")
             await sio.emit("error", {"message": str(e)}, room=sid)
