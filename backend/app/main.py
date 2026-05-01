@@ -1,9 +1,10 @@
+import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import connect_to_mongo, close_mongo_connection
 from app.config import get_settings
-from app.routes import topics, debates, votes, rankings, models, auth
+from app.routes import topics, debates, votes, rankings, models, auth, dna, arena, network
 from app.socket import setup_socket_events
 from app.socket_instance import sio
 
@@ -52,6 +53,9 @@ app.include_router(votes.router, prefix="/api/votes", tags=["投票"])
 app.include_router(rankings.router, prefix="/api/rankings", tags=["排行榜"])
 app.include_router(models.router, prefix="/api/models", tags=["模型配置"])
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
+app.include_router(dna.router, prefix="/api/dna", tags=["DNA指纹系统"])
+app.include_router(arena.router, prefix="/api/arena", tags=["竞技场模式"])
+app.include_router(network.router, prefix="/api/network", tags=["Token关系网络"])
 
 
 # 健康检查端点

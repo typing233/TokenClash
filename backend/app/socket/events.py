@@ -264,3 +264,80 @@ def setup_socket_events(sio: socketio.AsyncServer):
     async def ping(sid, data):
         """心跳检测"""
         await sio.emit("pong", {"timestamp": datetime.utcnow().isoformat()}, room=sid)
+    
+    @sio.event
+    async def join_arena(sid, data):
+        """
+        加入竞技场房间
+        
+        data格式:
+        {
+            "room_id": "房间ID"
+        }
+        """
+        try:
+            room_id = data.get("room_id")
+            if not room_id:
+                await sio.emit("error", {"message": "room_id is required"}, room=sid)
+                return
+            
+            await sio.enter_room(sid, room_id)
+            
+            await sio.emit(
+                "joined_arena",
+                {
+                    "room_id": room_id,
+                    "sid": sid
+                },
+                room=sid
+            )
+            
+            await sio.emit(
+                "user_joined_arena",
+                {"sid": sid, "room_id": room_id},
+                room=room_id,
+                skip_sid=sid
+            )
+            
+            print(f"Client {sid} joined arena room {room_id}")
+            
+        except Exception as e:
+            print(f"Error joining arena: {e}")
+            await sio.emit("error", {"message": str(e)}, room=sid)
+    
+    @sio.event
+    async def leave_arena(sid, data):
+        """
+        离开竞技场房间
+        
+        data格式:
+        {
+            "room_id": "房间ID"
+        }
+        """
+        try:
+            room_id = data.get("room_id")
+            if not room_id:
+                await sio.emit("error", {"message": "room_id is required"}, room=sid)
+                return
+            
+            await sio.leave_room(sid, room_id)
+            
+            await sio.emit(
+                "left_arena",
+                {"room_id": room_id},
+                room=sid
+            )
+            
+            await sio.emit(
+                "user_left_arena",
+                {"sid": sid},
+                room=room_id,
+                skip_sid=sid
+            )
+            
+            print(f"Client {sid} left arena room {room_id}")
+            
+        except Exception as e:
+            print(f"Error leaving arena: {e}")
+            await sio.emit("error", {"message": str(e)}, room=sid)

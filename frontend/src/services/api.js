@@ -82,6 +82,7 @@ export const rankingsApi = {
 export const modelsApi = {
   getAll: () => api.get('/models/'),
   getById: (id) => api.get(`/models/${id}`),
+  getConfiguredModels: () => api.get('/models/'),
   getPairs: () => api.get('/models/pairs/available'),
   getHealth: () => api.get('/models/status/health'),
   getConfigInfo: () => api.get('/models/config/info'),
@@ -105,6 +106,59 @@ export const authApi = {
     params: { old_password: oldPassword, new_password: newPassword }
   }),
   getStatistics: () => api.get('/auth/statistics'),
+};
+
+// DNA指纹相关API
+export const dnaApi = {
+  getAllFingerprints: () => api.get('/dna/fingerprints'),
+  getFingerprint: (modelId) => api.get(`/dna/fingerprints/${modelId}`),
+  updateFingerprint: (data) => api.post('/dna/fingerprints/update', data),
+  compareFingerprints: (model1Id, model2Id) => api.get(`/dna/compare/${model1Id}/${model2Id}`),
+  getFingerprintAnalytics: (modelId) => api.get(`/dna/fingerprints/${modelId}/analytics`),
+  getNebulaPattern: (modelId) => api.get(`/dna/nebula/${modelId}`),
+  generateNebulaPattern: (modelId) => api.post(`/dna/nebula/${modelId}/generate`),
+  getAllNebulaPatterns: () => api.get('/dna/nebula'),
+  exportNebulaSvg: (modelId, width = 800, height = 600) => 
+    api.get(`/dna/nebula/${modelId}/export/svg`, {
+      params: { width, height },
+      responseType: 'blob'
+    }),
+};
+
+// 竞技场相关API
+export const arenaApi = {
+  getRooms: () => api.get('/arena/rooms'),
+  getActiveRooms: () => api.get('/arena/rooms'),
+  getRoom: (roomId) => api.get(`/arena/rooms/${roomId}`),
+  createRoom: (data) => api.post('/arena/rooms', data),
+  startRoom: (roomId) => api.post(`/arena/rooms/${roomId}/start`),
+  getRoomHistory: () => api.get('/arena/rooms/history'),
+  getSkills: () => api.get('/arena/skills'),
+  useSkill: (roomId, data) => 
+    api.post(`/arena/rooms/${roomId}/skills`, data),
+  castVote: (roomId, data) => 
+    api.post(`/arena/rooms/${roomId}/vote`, data),
+  addEnergy: (roomId, data) => 
+    api.post(`/arena/rooms/${roomId}/energy`, data),
+};
+
+// Token关系网络相关API
+export const networkApi = {
+  getGraph: () => api.get('/network/graph'),
+  rebuildGraph: () => api.post('/network/graph/rebuild'),
+  getNodeDetail: (modelId) => api.get(`/network/nodes/${modelId}`),
+  getHiddenRelations: (limit = 20) => api.get('/network/adamic-adar', { params: { limit } }),
+  getAdamicAdarPairs: (limit = 20) => api.get('/network/adamic-adar', { params: { limit } }),
+  getRelationships: (modelId) => api.get(`/network/relationships/${modelId}`),
+  buildFromDebates: () => api.post('/network/build'),
+};
+
+// LLM配置API（动态配置）
+export const llmConfigApi = {
+  getConfig: () => api.get('/llm-config'),
+  updateConfig: (data) => api.post('/llm-config', data),
+  testConnection: (config) => api.post('/llm-config/test', config),
+  getModels: () => api.get('/llm-config/models'),
 };
 
 export default api;
